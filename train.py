@@ -36,11 +36,11 @@ def getlogger(logdir):
 def parse_args():
   parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-  parser.add_argument("--dataset", default='../Data/ShapeNet/')
+  parser.add_argument("--dataset", default='../Data/ShapeNetLess/')
   parser.add_argument("--downsample", default=8, help='Downsample Rate')
-  parser.add_argument("--num_test", type=int, default=1024, help='how many of the dataset use for testing')
-  parser.add_argument("--dataset_8i", default='/home/jupyter-eason/data/point_cloud/8i/8iVFBv2/soldier/Ply/')
-  parser.add_argument("--dataset_8i_GT", default='/home/jupyter-eason/data/point_cloud/8i/8iVFBv2/soldier/Ply/')
+  parser.add_argument("--num_test", type=int, default=400, help='how many of the dataset use for testing')
+  parser.add_argument("--dataset_8i", default='/home/jupyter-eason/data/point_cloud/8i/8iVFBv2/soldierless/Ply/')
+  parser.add_argument("--dataset_8i_GT", default='/home/jupyter-eason/data/point_cloud/8i/8iVFBv2/soldierless/Ply/')
   # parser.add_argument("--dataset_8i_GT", default='/home/jupyter-eason/data/software/mpeg-pcc-tmc2-master/output0911/soldier_r1/')
   parser.add_argument("--last_kernel_size", type=int, default=5, help='The final layer kernel size, coordinates get expanded by this')
 
@@ -49,9 +49,9 @@ def parse_args():
 
   parser.add_argument("--lr", type=float, default=8e-4)
   parser.add_argument("--batch_size", type=int, default=4)
-  parser.add_argument("--global_step", type=int, default=int(64000))
+  parser.add_argument("--global_step", type=int, default=int(1000))
   parser.add_argument("--base_step", type=int, default=int(100),  help='frequency for recording state.')
-  parser.add_argument("--test_step", type=int, default=int(2000),  help='frequency for test and save.')
+  parser.add_argument("--test_step", type=int, default=int(200),  help='frequency for test and save.')
   # parser.add_argument("--random_seed", type=int, default=4, help='random_seed.')
 
   parser.add_argument("--max_norm", type=float, default=1.,  help='max norm for gradient clip, close if 0')
@@ -61,7 +61,7 @@ def parse_args():
   parser.add_argument("--ckptdir", type=str, default='ckpts', help="ckpts direction.")
   parser.add_argument("--prefix", type=str, default='8x_0x_ks7', help="prefix of checkpoints/logger, etc.")
   parser.add_argument("--lr_gamma", type=float, default=0.5, help="gamma for lr_scheduler.")
-  parser.add_argument("--lr_step", type=int, default=6000, help="step for adjusting lr_scheduler.")
+  parser.add_argument("--lr_step", type=int, default=200, help="step for adjusting lr_scheduler.")
 
   args = parser.parse_args()
   return args
@@ -494,11 +494,11 @@ if __name__ == '__main__':
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
   logger.info(f'Device:{device}')
 
-  # Load data.
+  # Load data. 所有的shapenet数据都是XXX.h5  123.h5
   filedirs = glob.glob(args.dataset+'*.h5')
   filedirs = sorted(filedirs)
-  logger.info(f'Files length: {len(filedirs)}')
-
+  logger.info(f'ShapeNet Files length: {len(filedirs)}')
+  # 训练集和测试集
   train_dataloader = make_data_loader(files=filedirs[int(args.num_test):],
                                       GT_folder=None,
                                       batch_size=args.batch_size,
@@ -517,9 +517,13 @@ if __name__ == '__main__':
 
 
   # 8i dataset
+  # all 8i ply file
   eighti_filedirs = glob.glob(args.dataset_8i+'*.ply')
+  print('???????????????????')
+  print(len(eighti_filedirs),str(args.dataset_8i))
+  # sort
   eighti_filedirs = sorted(eighti_filedirs)
-  logger.info(f'Files length: {len(eighti_filedirs)}')
+  logger.info(f'8I Files length: {len(eighti_filedirs)}')
 
   eighti_dataloader = make_data_loader( files=eighti_filedirs, 
                                         GT_folder=args.dataset_8i_GT,

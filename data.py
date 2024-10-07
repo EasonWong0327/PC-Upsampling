@@ -94,7 +94,7 @@ class Dataset(torch.utils.data.Dataset):
         self.feats = []
         self.coords_T = []
         self.downsample = downsample
-        if GT_folder==None:     ## Finding out whether to downsample or not.
+        if GT_folder == None:     ## Finding out whether to downsample or not.
             self.ds = True
         else:
             self.ds = False
@@ -179,6 +179,7 @@ def make_data_loader(files, GT_folder, batch_size, downsample, shuffle, num_work
     
     start_time = time.time()
     print("Going to load the whole dataset in the memory, No. of files = ", len(files))
+    # 自定义dataset类
     dataset = Dataset(files, GT_folder, downsample)
     print("Time taken to load the dataset: ", round(time.time() - start_time, 4))
     
