@@ -531,6 +531,7 @@ if __name__ == '__main__':
                                         num_workers=1,
                                         repeat=False)
 
+
   # Network.
   model = MyNet(last_kernel_size=args.last_kernel_size).to(device)
   # logger.info(model)
