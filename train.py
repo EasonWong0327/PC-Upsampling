@@ -36,11 +36,11 @@ def getlogger(logdir):
 def parse_args():
   parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-  parser.add_argument("--dataset", default='/home/jupyter-eason/data/point_cloud/8i/8iVFBv2/soldierless/Ply/')
+  parser.add_argument("--dataset", default='/home/jupyter-eason/data/point_cloud/8i/8iVFBv2/soldier/Ply/')
   parser.add_argument("--downsample", default=8, help='Downsample Rate')
-  parser.add_argument("--num_test", type=int, default=400, help='how many of the dataset use for testing')
-  parser.add_argument("--dataset_8i", default='/home/jupyter-eason/data/point_cloud/8i/8iVFBv2/soldierless/Ply/')
-  parser.add_argument("--dataset_8i_GT", default='/home/jupyter-eason/data/point_cloud/8i/8iVFBv2/soldierless/Ply/')
+  parser.add_argument("--num_test", type=int, default=60, help='how many of the dataset use for testing')
+  # parser.add_argument("--dataset_8i", default='/home/jupyter-eason/data/point_cloud/8i/8iVFBv2/soldierless/Ply/')
+  # parser.add_argument("--dataset_8i_GT", default='/home/jupyter-eason/data/point_cloud/8i/8iVFBv2/soldierless/Ply/')
   # parser.add_argument("--dataset_8i_GT", default='/home/jupyter-eason/data/software/mpeg-pcc-tmc2-master/output0911/soldier_r1/')
   parser.add_argument("--last_kernel_size", type=int, default=5, help='The final layer kernel size, coordinates get expanded by this')
 
@@ -299,7 +299,7 @@ def test1(model, test_dataloader, logger, writer, writername, step, args, device
   return
 
 
-def train(model, train_dataloader, test_dataloader, test_dataloader2, logger, writer, args, device):
+def train(model, train_dataloader, test_dataloader, logger, writer, args, device):
   # Optimizer.
   optimizer = torch.optim.Adam([{"params":model.parameters(), 'lr':args.lr}], 
                                 betas=(0.9, 0.999), weight_decay=1e-4)
@@ -462,16 +462,16 @@ def train(model, train_dataloader, test_dataloader, test_dataloader2, logger, wr
 
       torch.cuda.empty_cache()
 
-    if i % (args.test_step) == 0:
-      # Evaluation 8i.
-      logger.info(f'\n=====Evaluation: iter {i} 8i =====')
-      with torch.no_grad():
-        test2(model=model, test_dataloader=test_dataloader2, 
-          logger=logger, writer=writer, writername='eval_8i', step=i, test_pc_error=True, args=args, device=device, First_eval=First_eval)
-        First_eval=False
-      torch.cuda.empty_cache()
-
-      model.to(device)
+    # if i % (args.test_step) == 0:
+    #   # Evaluation 8i.
+    #   logger.info(f'\n=====Evaluation: iter {i} 8i =====')
+    #   with torch.no_grad():
+    #     test2(model=model, test_dataloader=test_dataloader2,
+    #       logger=logger, writer=writer, writername='eval_8i', step=i, test_pc_error=True, args=args, device=device, First_eval=First_eval)
+    #     First_eval=False
+    #   torch.cuda.empty_cache()
+    #
+    #   model.to(device)
 
     if i % int(args.lr_step) == 0:
       scheduler.step()
@@ -495,46 +495,40 @@ if __name__ == '__main__':
   logger.info(f'Device:{device}')
 
   # Load data. 所有的shapenet数据都是XXX.h5  123.h5
-  filedirs = glob.glob(args.dataset+'*.h5')
+  filedirs = glob.glob(args.dataset+'*.ply')
   filedirs = sorted(filedirs)
-  logger.info(f'ShapeNet Files length: {len(filedirs)}')
+  logger.info(f'1-Train Files(8i) length: {len(filedirs)}')
   # 训练集和测试集
   train_dataloader = make_data_loader(files=filedirs[int(args.num_test):],
-                                      GT_folder=None,
                                       batch_size=args.batch_size,
-                                      downsample=args.downsample,
-                                      shuffle=True, 
+                                      shuffle=True,
                                       num_workers=mp.cpu_count(),
                                       repeat=True)
   
   test_dataloader = make_data_loader( files=filedirs[:int(args.num_test)],
-                                      GT_folder=None,
-                                      batch_size=args.batch_size, 
-                                      downsample=args.downsample,
-                                      shuffle=False, 
+                                      batch_size=args.batch_size,
+                                      shuffle=False,
                                       num_workers=mp.cpu_count(),
                                       repeat=False)
 
 
   # 8i dataset
   # all 8i ply file
-  eighti_filedirs = glob.glob(args.dataset_8i+'*.ply')
-  # sort
-  eighti_filedirs = sorted(eighti_filedirs)
-  logger.info(f'8I Files length: {len(eighti_filedirs)}')
+  # eighti_filedirs = glob.glob(args.dataset_8i+'*.ply')
+  # # sort
+  # eighti_filedirs = sorted(eighti_filedirs)
+  # logger.info(f'8I Files length: {len(eighti_filedirs)}')
 
-  eighti_dataloader = make_data_loader( files=eighti_filedirs, 
-                                        GT_folder=args.dataset_8i_GT,
-                                        batch_size=1, 
-                                        downsample=args.downsample,
-                                        shuffle=False,
-                                        num_workers=1,
-                                        repeat=False)
+  # eighti_dataloader = make_data_loader( files=eighti_filedirs,
+  #                                       batch_size=1,
+  #                                       shuffle=False,
+  #                                       num_workers=1,
+  #                                       repeat=False)
 
 
   # Network.
   model = MyNet(last_kernel_size=args.last_kernel_size).to(device)
   # logger.info(model)
 
-  train(model, train_dataloader, test_dataloader, eighti_dataloader, logger, writer, args, device)
+  train(model, train_dataloader, test_dataloader, logger, writer, args, device)
 

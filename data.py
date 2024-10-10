@@ -37,24 +37,35 @@ def loadh5(filedir, color_format='rgb'):
   return coords, feats
 
 def loadply(filedir, color_format='geometry'):
-  """Load coords & feats from ply file.
-  
-  Arguments: file direction.
-  
-  Returns: coords & feats.
-  """
-  pcd = o3d.io.read_point_cloud(filedir)
-  coords = np.asarray(pcd.points)
-  # feats = np.asarray(pcd.colors)
-  
-  if color_format=='geometry':
-    feats = np.expand_dims(np.ones(coords.shape[0]), 1)
-  elif color_format == 'None':
-    return coords
-  
-  feats = feats.astype('float32')
+    """Load coords & feats from ply file.
 
-  return coords, feats
+    Arguments: file direction.
+
+    Returns: coords & feats.
+
+      Data descriptors defined here:
+ |
+ |  colors
+ |      ``float64`` array of shape ``(num_points, 3)``, range ``[0, 1]`` , use ``numpy.asarray()`` to access data: RGB colorsof points.
+ |
+ |  covariances
+ |      ``float64`` array of shape ``(num_points, 3, 3)``, use ``numpy.asarray()`` to access data: Points covariances.
+ |
+ |  normals
+ |      ``float64`` array of shape ``(num_points, 3)``, use ``numpy.asarray()`` to access data: Points normals.
+ |
+ |  points
+ |      ``float64`` array of shape ``(num_points, 3)``, use ``numpy.asarray()`` to access data: Points coordinates.
+
+    """
+    pcd = o3d.io.read_point_cloud(filedir)
+    # print(pcd)
+    coords = np.asarray(pcd.points)
+    feats = np.asarray(pcd.colors)
+
+    pc_data = np.concatenate([coords, feats], axis=-1)
+    # print(coords.shape,feats.shape,pc_data.shape)
+    return coords, feats, pc_data
 
 class InfSampler(Sampler):
     """Samples elements randomly, without replacement.
@@ -89,27 +100,33 @@ class InfSampler(Sampler):
 
 class Dataset(torch.utils.data.Dataset):
 
-    def __init__(self, files, GT_folder, downsample, feature_format='geometry'):
+    def __init__(self, files, feature_format='geometry'):
         self.coords = []
         self.feats = []
         self.pc_datas = []
 
-        for i,f in enumerate(files):
-            print('files',f,os.path.basename(f))
+        if not files:
+            raise ValueError("The files list is empty.")
 
-            # if f.endswith('.h5'):
-            #     coords, feats = loadh5(f, feature_format)
+        for i, f in enumerate(files):
+            print('Processing file:', f, os.path.basename(f))
+
             if f.endswith('.ply'):
                 coord, feat, pc_data = loadply(f, feature_format)
+                self.coords.append(coord)
+                self.feats.append(feat)
+                self.pc_datas.append(pc_data)
+            else:
+                print(f"Skipping file (not .ply): {f}")
 
-            self.coords.append(coord)
-            self.feats.append(feat)
-            self.pc_datas.append(pc_data)
-            
+        print("Total point clouds loaded:", len(self.pc_datas))
+
     def __len__(self):
         return len(self.coords)
 
     def __getitem__(self, idx):
+        if idx >= len(self.coords) or idx < 0:
+            raise IndexError("Index out of range.")
         return (self.coords[idx], self.feats[idx], self.pc_datas[idx])
         
 
@@ -135,7 +152,7 @@ def collate_pointcloud_fn(list_data):
 
     return coords_batch, feats_batch, coords_T_batch
 
-def make_data_loader(files, GT_folder, batch_size, downsample, shuffle, num_workers, repeat):
+def make_data_loader(files, batch_size, shuffle, num_workers, repeat):
     args = {
         'batch_size': batch_size,
         'num_workers': num_workers,
@@ -147,7 +164,7 @@ def make_data_loader(files, GT_folder, batch_size, downsample, shuffle, num_work
     start_time = time.time()
     print("Going to load the whole dataset in the memory, No. of files = ", len(files))
     # 自定义dataset类
-    dataset = Dataset(files, GT_folder, downsample)
+    dataset = Dataset(files)
     print("Time taken to load the dataset: ", round(time.time() - start_time, 4))
     
     if repeat:
