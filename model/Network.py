@@ -26,7 +26,7 @@ class MyNet(ME.MinkowskiNetwork):
       BLOCK_2 = self.BLOCK_2
       
       self.conv1 = ME.MinkowskiConvolution(
-          in_channels=in_channels,
+          in_channels=3,
           out_channels=CHANNELS[1],
           kernel_size=5,
           stride=1,
@@ -190,6 +190,7 @@ class MyNet(ME.MinkowskiNetwork):
     	return keep
 
     def forward(self, x, pc_data, device, prune=True):
+      print(x.shape)
       out_s1 = self.conv1(x)
       out_s1 = self.norm1(out_s1)
       out_s1 = self.block1(out_s1)
