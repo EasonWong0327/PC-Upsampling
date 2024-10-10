@@ -189,7 +189,7 @@ class MyNet(ME.MinkowskiNetwork):
     			keep[row_indices[indices]]=True
     	return keep
 
-    def forward(self, x, coords_T, device, prune=True):
+    def forward(self, x, pc_data, device, prune=True):
       out_s1 = self.conv1(x)
       out_s1 = self.norm1(out_s1)
       out_s1 = self.block1(out_s1)
@@ -246,8 +246,8 @@ class MyNet(ME.MinkowskiNetwork):
       out = MEF.relu(out)
       
       out_cls = self.final(out)
-      target = self.get_target_by_sp_tensor(out, coords_T)
-      keep = self.choose_keep(out_cls, coords_T, device)
+      target = self.get_target_by_sp_tensor(out, pc_data)
+      keep = self.choose_keep(out_cls, pc_data, device)
       if prune:
           out = self.pruning(out_cls, keep.to(device))
     

@@ -36,7 +36,7 @@ def getlogger(logdir):
 def parse_args():
   parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-  parser.add_argument("--dataset", default='../Data/ShapeNetLess/')
+  parser.add_argument("--dataset", default='/home/jupyter-eason/data/point_cloud/8i/8iVFBv2/soldierless/Ply/')
   parser.add_argument("--downsample", default=8, help='Downsample Rate')
   parser.add_argument("--num_test", type=int, default=400, help='how many of the dataset use for testing')
   parser.add_argument("--dataset_8i", default='/home/jupyter-eason/data/point_cloud/8i/8iVFBv2/soldierless/Ply/')
@@ -349,7 +349,7 @@ def train(model, train_dataloader, test_dataloader, test_dataloader2, logger, wr
     optimizer.zero_grad()
     
     s = time.time()
-    coords, feats, coords_T = train_iter.next()
+    coords, feats, pc_data = train_iter.next()
     dataloader_time = time.time() - s
 
     x = ME.SparseTensor(features=feats.to(device), coordinates=coords.to(device))
@@ -359,7 +359,7 @@ def train(model, train_dataloader, test_dataloader, test_dataloader2, logger, wr
       continue
   
     # Forward.
-    _, out_cls, target, keep = model(x, coords_T=coords_T, device=device, prune=False)
+    _, out_cls, target, keep = model(x, pc_data= pc_data, device=device, prune=False)
     
     loss = crit(out_cls.F.squeeze(), target.type(out_cls.F.dtype).to(device))
     metrics = get_metrics(keep, target)
@@ -519,8 +519,6 @@ if __name__ == '__main__':
   # 8i dataset
   # all 8i ply file
   eighti_filedirs = glob.glob(args.dataset_8i+'*.ply')
-  print('???????????????????')
-  print(len(eighti_filedirs),str(args.dataset_8i))
   # sort
   eighti_filedirs = sorted(eighti_filedirs)
   logger.info(f'8I Files length: {len(eighti_filedirs)}')
@@ -535,7 +533,7 @@ if __name__ == '__main__':
 
   # Network.
   model = MyNet(last_kernel_size=args.last_kernel_size).to(device)
-  logger.info(model)
+  # logger.info(model)
 
   train(model, train_dataloader, test_dataloader, eighti_dataloader, logger, writer, args, device)
 

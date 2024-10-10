@@ -92,58 +92,25 @@ class Dataset(torch.utils.data.Dataset):
     def __init__(self, files, GT_folder, downsample, feature_format='geometry'):
         self.coords = []
         self.feats = []
-        self.coords_T = []
-        self.downsample = downsample
-        if GT_folder == None:     ## Finding out whether to downsample or not.
-            self.ds = True
-        else:
-            self.ds = False
-        
+        self.pc_datas = []
+
         for i,f in enumerate(files):
-            if self.ds:     # If need to downsample
-                if f.endswith('.h5'):
-                    coords, feats = loadh5(f, feature_format)
-                    coords_T = coords
-                elif f.endswith('.ply'):
-                    coords, feats = loadply(f, feature_format)
-                    coords_T = coords
-            else:
-                name = os.path.basename(f)
-                gt_file = os.path.join(GT_folder, name)
-                if not os.path.exists(gt_file):
-                    print(gt_file)
-                    print('Error, File does not exist in GT folder')
-                    continue
-                
-                if f.endswith('.h5'):
-                    coords, feats = loadh5(f, feature_format)
-                    coords_T = loadh5(gt_file, 'None')
-                elif f.endswith('.ply'):
-                    coords, feats = loadply(f, feature_format)
-                    coords_T = loadply(gt_file, 'None')
-            
-            
-            self.coords.append(coords)
-            self.feats.append(feats)
-            self.coords_T.append(coords_T)
+            print('files',f,os.path.basename(f))
+
+            # if f.endswith('.h5'):
+            #     coords, feats = loadh5(f, feature_format)
+            if f.endswith('.ply'):
+                coord, feat, pc_data = loadply(f, feature_format)
+
+            self.coords.append(coord)
+            self.feats.append(feat)
+            self.pc_datas.append(pc_data)
             
     def __len__(self):
         return len(self.coords)
 
     def __getitem__(self, idx):
-        if self.ds:
-            coords = self.coords[idx]
-            feats = self.feats[idx]
-            coords_T = self.coords_T[idx]
-            
-            N = coords_T.shape[0]
-            N2 = N//self.downsample
-            idx = np.random.choice(N, N2, replace=False)
-            coords = coords[idx]
-            feats = feats[idx]
-            return (coords, feats, coords_T)
-        else:
-            return (self.coords[idx], self.feats[idx], self.coords_T[idx])
+        return (self.coords[idx], self.feats[idx], self.pc_datas[idx])
         
 
 def collate_pointcloud_fn(list_data):
