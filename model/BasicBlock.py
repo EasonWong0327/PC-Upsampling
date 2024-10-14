@@ -45,7 +45,7 @@ class MyInception_1(nn.Module):
                  dimension=3):
         super(MyInception_1, self).__init__()
         assert dimension > 0
-
+        # path-1   1-3-1
         self.conv1 = ME.MinkowskiConvolution(
             channels, channels//4, kernel_size=1, stride=stride, dilation=dilation, bias=True, dimension=dimension)
         self.norm1 = ME.MinkowskiBatchNorm(channels//4, momentum=bn_momentum)
@@ -55,7 +55,8 @@ class MyInception_1(nn.Module):
         self.conv3 = ME.MinkowskiConvolution(
             channels//4, channels//2, kernel_size=1, stride=stride, dilation=dilation, bias=True, dimension=dimension)
         self.norm3 = ME.MinkowskiBatchNorm(channels//2, momentum=bn_momentum)
-        
+
+        # path-2   3-3
         self.conv4 = ME.MinkowskiConvolution(
             channels, channels//4, kernel_size=3, stride=stride, dilation=dilation, bias=True, dimension=dimension)
         self.norm4 = ME.MinkowskiBatchNorm(channels//4, momentum=bn_momentum)
@@ -66,7 +67,7 @@ class MyInception_1(nn.Module):
         self.relu = ME.MinkowskiReLU(inplace=True)
 
     def forward(self, x):
-        # 1
+        # path-1
         out = self.conv1(x)
         out = self.norm1(out)
         out = self.relu(out)
@@ -76,19 +77,21 @@ class MyInception_1(nn.Module):
         out = self.relu(out)
         
         out = self.conv3(out)
+        # 1/2 channels
         out = self.norm3(out)
         out = self.relu(out)
         
-        # 2
+        # path-1
         out1 = self.conv4(x)
         out1 = self.norm4(out1)
         out1 = self.relu(out1)
         
         out1 = self.conv5(out1)
+        # 1/2 channels
         out1 = self.norm5(out1)
         out1 = self.relu(out1)
 
-        # 3
+        # 1/2 channels + 1/2 channels = channels
         out2 = ME.cat(out,out1)
         out2 += x
 

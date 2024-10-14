@@ -13,6 +13,27 @@ from utils.pc_error_wrapper import pc_error
 from tensorboardX import SummaryWriter
 import logging
 
+import GPUtil
+import pynvml
+pynvml.nvmlInit()
+gpu_index = 0
+
+def print_gpu_memory(device=None):
+    if device is None:
+        device = torch.cuda.current_device()
+    handle = pynvml.nvmlDeviceGetHandleByIndex(device)
+    mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+    utilization = pynvml.nvmlDeviceGetUtilizationRates(handle)
+    temperature = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+
+    print(f"GPU {device}:")
+    print(f"  Total Memory: {mem_info.total / (1024 ** 2):.2f} MB")
+    print(f"  Used Memory: {mem_info.used / (1024 ** 2):.2f} MB")
+    print(f"  Free Memory: {mem_info.free / (1024 ** 2):.2f} MB")
+    print(f"  GPU Utilization: {utilization.gpu}%")
+    print(f"  Memory Utilization: {utilization.memory}%")
+    print(f"  Temperature: {temperature} C")
+    print("-" * 30)
 
 def getlogger(logdir):
   logger = logging.getLogger(__name__)
@@ -48,7 +69,7 @@ def parse_args():
   parser.add_argument("--reset", default=False, action='store_true', help='reset training')
 
   parser.add_argument("--lr", type=float, default=8e-4)
-  parser.add_argument("--batch_size", type=int, default=4)
+  parser.add_argument("--batch_size", type=int, default=2)
   parser.add_argument("--global_step", type=int, default=int(1000))
   parser.add_argument("--base_step", type=int, default=int(100),  help='frequency for recording state.')
   parser.add_argument("--test_step", type=int, default=int(200),  help='frequency for test and save.')
@@ -350,19 +371,112 @@ def train(model, train_dataloader, test_dataloader, logger, writer, args, device
     
     s = time.time()
     coords, feats, pc_data = train_iter.next()
+    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    print(coords.shape,feats.shape,pc_data.shape)
     dataloader_time = time.time() - s
 
+    print("After data loading:")
+    print_gpu_memory(gpu_index)
+
     x = ME.SparseTensor(features=feats.to(device), coordinates=coords.to(device))
+    y = ME.SparseTensor(features=feats.to(device), coordinates=coords.to(device))
+
+    print('after SparseTensor,X.shape:',x.shape)
+    print(f"After SparseTensor creation:")
+    print_gpu_memory(gpu_index)
 
     if x.__len__() >= 1e10:
       logger.info(f'\n\n\n======= larger than 1e10 ======: {x.__len__()}\n\n\n')
       continue
   
     # Forward.
-    _, out_cls, target, keep = model(x, pc_data= pc_data, device=device, prune=False)
+    ''''
+    up-sampling：
+    out_cls, target, keep = torch.Size([18799, 1]) torch.Size([18799]) torch.Size([18799])
+    out_cls:
+                SparseTensor(
+              coordinates=tensor([[ 0, 75, 84, 94],
+                    [ 0, 35, 87, 24],
+                    [ 0, 25, 20, 32],
+                    ...,
+                    [ 3, 42, 37, 78],
+                    [ 3, 80, 79, 40],
+                    [ 3, 75, 65, 57]], device='cuda:0', dtype=torch.int32)
+              features=tensor([[1.2300],
+                    [3.3449],
+                    [1.3790],
+                    ...,
+                    [2.0339],
+                    [1.1265],
+                    [1.3687]], device='cuda:0', grad_fn=<AddBackward0>)
+              coordinate_map_key=coordinate map key:[1, 1, 1]
+              coordinate_manager=CoordinateMapManagerGPU_c10(
+                    [0, 0, 0]:      CoordinateMapGPU:4x4
+                    [1, 1, 1]:      CoordinateMapGPU:18799x4
+                    [2, 2, 2]:      CoordinateMapGPU:14568x4
+                    [4, 4, 4]:      CoordinateMapGPU:5974x4
+                    [8, 8, 8]:      CoordinateMapGPU:1580x4
+                    [16, 16, 16]:   CoordinateMapGPU:415x4
+                    [2, 2, 2]->[1, 1, 1]:   gpu_kernel_map: number of unique maps:125, kernel map size:106338
+                    [4, 4, 4]->[2, 2, 2]:   gpu_kernel_map: number of unique maps:27, kernel map size:39616
+                    [8, 8, 8]->[4, 4, 4]:   gpu_kernel_map: number of unique maps:27, kernel map size:16959
+                    [16, 16, 16]->[8, 8, 8]:        gpu_kernel_map: number of unique maps:27, kernel map size:4392
+                    [16, 16, 16]->[0, 0, 0]:        gpu_kernel_map: number of unique maps:4, kernel map size:415
+                    [8, 8, 8]->[16, 16, 16]:        gpu_kernel_map: number of unique maps:27, kernel map size:4392
+                    [8, 8, 8]->[0, 0, 0]:   gpu_kernel_map: number of unique maps:4, kernel map size:1580
+                    [4, 4, 4]->[0, 0, 0]:   gpu_kernel_map: number of unique maps:4, kernel map size:5974
+                    [1, 1, 1]->[0, 0, 0]:   gpu_kernel_map: number of unique maps:4, kernel map size:18799
+                    [16, 16, 16]->[16, 16, 16]:     gpu_kernel_map: number of unique maps:1, kernel map size:415
+                    [8, 8, 8]->[8, 8, 8]:   gpu_kernel_map: number of unique maps:1, kernel map size:1580
+                    [4, 4, 4]->[4, 4, 4]:   gpu_kernel_map: number of unique maps:13, kernel map size:7112
+                    [1, 1, 1]->[1, 1, 1]:   gpu_kernel_map: number of unique maps:27, kernel map size:22245
+                    [2, 2, 2]->[2, 2, 2]:   gpu_kernel_map: number of unique maps:27, kernel map size:22652
+                    [16, 16, 16]->[16, 16, 16]:     gpu_kernel_map: number of unique maps:27, kernel map size:5561
+                    [8, 8, 8]->[8, 8, 8]:   gpu_kernel_map: number of unique maps:27, kernel map size:22906
+                    [4, 4, 4]->[8, 8, 8]:   gpu_kernel_map: number of unique maps:27, kernel map size:16959
+                    [1, 1, 1]->[1, 1, 1]:   gpu_kernel_map: number of unique maps:27, kernel map size:52867
+                    [1, 1, 1]->[2, 2, 2]:   gpu_kernel_map: number of unique maps:27, kernel map size:34980
+                    [2, 2, 2]->[2, 2, 2]:   gpu_kernel_map: number of unique maps:27, kernel map size:126294
+                    [4, 4, 4]->[4, 4, 4]:   gpu_kernel_map: number of unique maps:27, kernel map size:86736
+                    [16, 16, 16]->[16, 16, 16]:     gpu_kernel_map: number of unique maps:1, kernel map size:415
+                    [8, 8, 8]->[8, 8, 8]:   gpu_kernel_map: number of unique maps:5, kernel map size:1722
+                    [1, 1, 1]->[1, 1, 1]:   gpu_kernel_map: number of unique maps:27, kernel map size:23751
+                    [2, 2, 2]->[2, 2, 2]:   gpu_kernel_map: number of unique maps:27, kernel map size:27336
+                    [4, 4, 4]->[4, 4, 4]:   gpu_kernel_map: number of unique maps:27, kernel map size:12116
+                    [16, 16, 16]->[16, 16, 16]:     gpu_kernel_map: number of unique maps:7, kernel map size:457
+                    [8, 8, 8]->[8, 8, 8]:   gpu_kernel_map: number of unique maps:27, kernel map size:4364
+                    [1, 1, 1]->[1, 1, 1]:   gpu_kernel_map: number of unique maps:27, kernel map size:29395
+                    [2, 2, 2]->[2, 2, 2]:   gpu_kernel_map: number of unique maps:27, kernel map size:36918
+                    [4, 4, 4]->[4, 4, 4]:   gpu_kernel_map: number of unique maps:27, kernel map size:20846
+                    [1, 1, 1]->[1, 1, 1]:   gpu_kernel_map: number of unique maps:125, kernel map size:149707
+                    [2, 2, 2]->[0, 0, 0]:   gpu_kernel_map: number of unique maps:4, kernel map size:14568
+                    [2, 2, 2]->[4, 4, 4]:   gpu_kernel_map: number of unique maps:27, kernel map size:39616
+                    algorithm=MinkowskiAlgorithm.DEFAULT
+              )
+              spatial dimension=3)
+  
+    target:  tensor([True, True, True,  ..., True, True, True])
+    keep:    tensor([True, True, True,  ..., True, True, True])
     
-    loss = crit(out_cls.F.squeeze(), target.type(out_cls.F.dtype).to(device))
-    metrics = get_metrics(keep, target)
+    
+    x, pc_data = torch.Size([18799, 1]) torch.Size([150408, 4]) 
+    '''
+    # _, out_cls, target, keep = model(x, pc_data= pc_data, device=device, prune=False)
+    out_cls = model(x)
+
+    # 前向传播后
+    print("After forward pass:")
+    print_gpu_memory(gpu_index)
+    '''   
+    out_cls.F.squeeze()：
+    tensor([1.2300, 3.3449, 1.3790,  ..., 2.0339, 1.1265, 1.3687], device='cuda:0',
+       grad_fn=<SqueezeBackward0>)
+    
+    target.type(out_cls.F.dtype)：
+    tensor([1., 1., 1.,  ..., 1., 1., 1.])
+    '''
+    loss = crit(out_cls.F.squeeze(), y)
+    # metrics = get_metrics(keep, target)
         
     if torch.isnan(loss) or torch.isinf(loss):
         logger.info(f'\n== loss is nan ==, Step: {i}\n')
@@ -370,7 +484,10 @@ def train(model, train_dataloader, test_dataloader, logger, writer, args, device
         
     # Backward.    
     loss.backward()
-    
+    # 反向传播后
+    print("After backward pass:")
+    print_gpu_memory(gpu_index)
+
     # Optional clip gradient. 
     if args.max_norm != 0:
       # clip by norm
@@ -399,11 +516,13 @@ def train(model, train_dataloader, test_dataloader, logger, writer, args, device
       print('after gradient clip',  max(p.grad.data.abs().max() for p in model.parameters()))
     
     optimizer.step()
-    
+    print("After optimizer step:")
+    print_gpu_memory(gpu_index)
+
     # record.
-    with torch.no_grad():
-      sum_loss += loss.item()
-      all_metrics += np.array(metrics)
+    # with torch.no_grad():
+    #   sum_loss += loss.item()
+    #   all_metrics += np.array(metrics)
     
     # Display.
     if i % args.base_step == 0:
@@ -527,7 +646,7 @@ if __name__ == '__main__':
 
 
   # Network.
-  model = MyNet(last_kernel_size=args.last_kernel_size).to(device)
+  model = MyNet().to(device)
   # logger.info(model)
 
   train(model, train_dataloader, test_dataloader, logger, writer, args, device)

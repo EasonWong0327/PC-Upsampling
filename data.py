@@ -36,7 +36,7 @@ def loadh5(filedir, color_format='rgb'):
 
   return coords, feats
 
-def loadply(filedir, color_format='geometry'):
+def loadply(filedir,voxel_size=0.5):
     """Load coords & feats from ply file.
 
     Arguments: file direction.
@@ -59,12 +59,17 @@ def loadply(filedir, color_format='geometry'):
 
     """
     pcd = o3d.io.read_point_cloud(filedir)
+    # pcd = pcd_init.voxel_down_sample(voxel_size=voxel_size)  # 体素下采样
+    coords1 = np.asarray(pcd.points)
+    coords2 = np.asarray(pcd.points)
+    print('voxel_size:',coords1.shape,coords2.shape)
+
     # print(pcd)
     coords = np.asarray(pcd.points)
     feats = np.asarray(pcd.colors)
 
     pc_data = np.concatenate([coords, feats], axis=-1)
-    # print(coords.shape,feats.shape,pc_data.shape)
+    print('Function:loadply:',coords.shape,feats.shape,pc_data.shape)
     return coords, feats, pc_data
 
 class InfSampler(Sampler):
@@ -112,7 +117,7 @@ class Dataset(torch.utils.data.Dataset):
             print('Processing file:', f, os.path.basename(f))
 
             if f.endswith('.ply'):
-                coord, feat, pc_data = loadply(f, feature_format)
+                coord, feat, pc_data = loadply(f)
                 self.coords.append(coord)
                 self.feats.append(feat)
                 self.pc_datas.append(pc_data)
