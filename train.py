@@ -475,7 +475,7 @@ def train(model, train_dataloader, test_dataloader, logger, writer, args, device
     target.type(out_cls.F.dtype)：
     tensor([1., 1., 1.,  ..., 1., 1., 1.])
     '''
-    loss = crit(out_cls.F.squeeze(), y)
+    loss = crit(out_cls.F.squeeze(), y.F.squeeze())
     # metrics = get_metrics(keep, target)
         
     if torch.isnan(loss) or torch.isinf(loss):
